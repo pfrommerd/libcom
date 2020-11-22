@@ -180,7 +180,7 @@ namespace telegraph {
             code += "};\n";
 
             code += "wire::type_info<" + type_to_cpp_ident(*tp) + "> " + type_to_name(*tp) + "_type " +
-                        "= wire::type_info<" + type_to_cpp_ident(*tp) + ">(\"" +  
+                        "= wire::type_info<" + type_to_cpp_ident(*tp) + ">(\"" +
                         tp->get_name() + "\", " + std::to_string(tp->get_labels().size()) + ", " + type_to_name(*tp) + "_labels_);";
 
             code += "\n\n";
@@ -192,7 +192,7 @@ namespace telegraph {
     std::string
     generator::generate_node(const node* n,
                             const std::string& accessor_prefix,
-                            std::map<int32_t, std::string>* id_accessors, 
+                            std::map<int32_t, std::string>* id_accessors,
                             bool root) const {
         auto& accessors = *id_accessors;
 
@@ -205,20 +205,20 @@ namespace telegraph {
             std::string new_prefix = root ? "" : accessor_prefix + ident + ".";
 
             std::string subcode = "";
-            for (const node* c : *g) {
+            for (auto& c : *g) {
                 if (c->get_name() == "group") {
                     throw generate_error("group cannot have a child of name group");
                 }
                 subcode += "\n";
-                subcode += generate_node(c, new_prefix, id_accessors, false);
+                subcode += generate_node(c.get(), new_prefix, id_accessors, false);
             }
 
             std::string children_array;
-            for (const node* n : *g) {
+            for (auto& n : *g) {
                 if (children_array.size() > 0) {
                     children_array += ", ";
                 }
-                std::string accessor = accessors[n->get_id()].substr(new_prefix.length(), 
+                std::string accessor = accessors[n->get_id()].substr(new_prefix.length(),
                                                                      std::string::npos);
                 children_array += "&" + accessor;
             }
@@ -230,9 +230,9 @@ namespace telegraph {
             subcode += "\n};";
             if (root) {
                 subcode += "\nwire::group root = wire::group(" +
-                                std::to_string(g->get_id()) + ", \"" + ident + 
+                                std::to_string(g->get_id()) + ", \"" + ident +
                                 "\", \"" + g->get_pretty() +
-                                "\", \"" + g->get_desc() + 
+                                "\", \"" + g->get_desc() +
                                 "\", \"" + g->get_schema() +
                                 "\"," + std::to_string(g->get_version()) +
                                 ", children_, " + std::to_string(g->num_children()) + ");";
@@ -240,9 +240,9 @@ namespace telegraph {
                 code += "\n";
             } else {
                 subcode += "\nwire::group group = wire::group(" +
-                                std::to_string(g->get_id()) + ", \"" + ident + 
+                                std::to_string(g->get_id()) + ", \"" + ident +
                                 "\", \"" + g->get_pretty() +
-                                "\", \"" + g->get_desc() + 
+                                "\", \"" + g->get_desc() +
                                 "\", \"" + g->get_schema() +
                                 "\"," + std::to_string(g->get_version()) +
                                 ", children_, " + std::to_string(g->num_children()) + ");";
@@ -308,7 +308,7 @@ namespace telegraph {
         subcode += "\n";
         subcode += "size_t table_size = " + std::to_string(last_id + 1) + ";\n";
         subcode += "wire::node* const node_table[" + std::to_string(last_id + 1) + "] = {";
-        subcode += accessors; 
+        subcode += accessors;
         subcode += "};\n";
 
         std::string code = "struct node_tree {\n";
@@ -326,7 +326,7 @@ namespace telegraph {
             std::unordered_set<uint32_t> id_set;
             for (node* n : set) id_set.insert(n->get_id());
 
-            std::string var = "const wire::id_array<" + 
+            std::string var = "const wire::id_array<" +
                 std::to_string(id_set.size()) + "> " + set_name + " = {";
             bool first = true;
             for (int32_t id : id_set) {

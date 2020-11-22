@@ -27,9 +27,9 @@ namespace telegraph {
         friend group;
     public:
         using id = uint16_t;
-        node(id i, const std::string_view& name, 
-             const std::string_view& pretty, const std::string_view& desc) : 
-                id_(i), name_(name), pretty_(pretty), 
+        node(id i, const std::string_view& name,
+             const std::string_view& pretty, const std::string_view& desc) :
+                id_(i), name_(name), pretty_(pretty),
                 desc_(desc), parent_(nullptr), owner_() {}
         node(const node& n) : id_(n.get_id()), name_(n.get_name()),
                               pretty_(n.get_pretty()), desc_(n.get_desc()),
@@ -51,21 +51,21 @@ namespace telegraph {
         std::vector<std::string> path() const;
 
         // To be overloaded by group
-        virtual node* from_path(const std::vector<std::string_view>& p, 
+        virtual node* from_path(const std::vector<std::string_view>& p,
                                        size_t idx=0) {
             return idx != p.size() ? nullptr : this;
         }
-        virtual const node* from_path(const std::vector<std::string_view>& p, 
+        virtual const node* from_path(const std::vector<std::string_view>& p,
                                        size_t idx=0) const {
             return idx != p.size() ? nullptr : this;
         }
         virtual std::vector<node*> nodes() {
-            std::vector<node*> n; 
+            std::vector<node*> n;
             n.push_back(this);
             return n;
         }
         virtual std::vector<const node*> nodes() const {
-            std::vector<const node*> n; 
+            std::vector<const node*> n;
             n.push_back(this);
             return n;
         }
@@ -74,10 +74,10 @@ namespace telegraph {
         virtual node* operator[](const std::string& child) { return nullptr; }
         virtual const node* operator[](const std::string& child) const { return nullptr; }
 
-        virtual void set_owner(const std::weak_ptr<context>& c) { 
-            if (owner_.lock() && c.lock()) 
+        virtual void set_owner(const std::weak_ptr<context>& c) {
+            if (owner_.lock() && c.lock())
                 throw tree_error("node already has owner!");
-            owner_ = c; 
+            owner_ = c;
         }
 
         virtual void set_unowned() { owner_.reset(); }
@@ -86,8 +86,8 @@ namespace telegraph {
 
         // pack and unpack functions
         virtual void pack(Node* proto) const = 0;
-        static node* unpack(const Node& proto);
-        
+        static std::unique_ptr<node> unpack(const Node& proto);
+
         virtual std::unique_ptr<node> clone() const = 0;
     protected:
         constexpr void set_parent(group* g) { parent_ = g; }
@@ -112,58 +112,55 @@ namespace telegraph {
     public:
         group(id i, const std::string_view& name, const std::string_view& pretty,
                     const std::string_view& desc, const std::string_view& schema, int version,
-                    std::vector<node*>&& children) : 
+                    std::vector<std::unique_ptr<node>>&& children) :
                 node(i, name, pretty, desc),
                 schema_(schema), version_(version), placeholders_(),
-                children_(children), children_map_() {
+                children_(std::move(children)), children_map_() {
             // populate the children map
-            for (node* n : children_) {
+            for (auto& n : children_) {
                 n->set_parent(this);
-                children_map_[n->get_name()] = n;
+                children_map_[n->get_name()] = n.get();
             }
         }
         group(id i, const std::string_view& name, const std::string_view& pretty,
                     const std::string_view& desc, const std::string_view& schema, int version,
-                    std::vector<node::id>&& placeholders) : 
+                    std::vector<node::id>&& placeholders) :
                 node(i, name, pretty, desc),
                 schema_(schema), version_(version), placeholders_(std::move(placeholders)),
                 children_(), children_map_() {
             // populate the children map
-            for (node* n : children_) {
+            for (auto& n : children_) {
                 n->set_parent(this);
-                children_map_[n->get_name()] = n;
+                children_map_[n->get_name()] = n.get();
             }
         }
         group(const group& g) :
             node(g), schema_(g.get_schema()),
             version_(g.get_version()), children_(),
             children_map_() {
-            for (const node* n : g) {
+            for (auto& n : g) {
                 std::unique_ptr<node> nn = n->clone();
-                node* r = nn.release();
-                r->set_parent(this);
-                children_.push_back(r);
-                children_map_[r->get_name()] = r;
+                nn->set_parent(this);
+                children_map_[nn->get_name()] = nn.get();
+                children_.push_back(std::move(nn));
             }
         }
-        ~group() {
-            for (node* n : children_) delete n;
-        }
+        ~group() {}
 
         const std::string& get_schema() const { return schema_; }
         int get_version() const { return version_; }
 
         void set_owner(const std::weak_ptr<context>& c) override {
             node::set_owner(c);
-            for (node* child : children_) child->set_owner(c);
+            for (auto& child : children_) child->set_owner(c);
         }
 
         void set_unowned() override {
             node::set_unowned();
-            for (node* c : children_) c->set_unowned();
+            for (auto& c : children_) c->set_unowned();
         }
 
-        node* from_path(const std::vector<std::string_view>& p, 
+        node* from_path(const std::vector<std::string_view>& p,
                                 size_t idx=0) override {
             if (idx > p.size()) return nullptr;
             else if (idx == p.size()) return this;
@@ -173,7 +170,7 @@ namespace telegraph {
                 return it->second->from_path(p, ++idx);
             }
         }
-        const node* from_path(const std::vector<std::string_view>& p, 
+        const node* from_path(const std::vector<std::string_view>& p,
                                         size_t idx=0) const override {
             if (idx > p.size()) return nullptr;
             else if (idx == p.size()) return this;
@@ -185,9 +182,9 @@ namespace telegraph {
         }
 
         std::vector<node*> nodes() override {
-            std::vector<node*> n; 
+            std::vector<node*> n;
             n.push_back(this);
-            for (node* c : children_) {
+            for (auto& c : children_) {
                 for (node* d : c->nodes()) {
                     n.push_back(d);
                 }
@@ -195,9 +192,9 @@ namespace telegraph {
             return n;
         }
         std::vector<const node*> nodes() const override {
-            std::vector<const node*> n; 
+            std::vector<const node*> n;
             n.push_back(this);
-            for (const node* c : children_) {
+            for (auto& c : children_) {
                 for (const node* d : c->nodes()) {
                     n.push_back(d);
                 }
@@ -211,11 +208,11 @@ namespace telegraph {
 
         node* operator[](size_t idx) override {
             if (idx >= children_.size()) return nullptr;
-            return children_[idx];
+            return children_[idx].get();
         }
         const node* operator[](size_t idx) const override {
             if (idx >= children_.size()) return nullptr;
-            return children_[idx];
+            return children_[idx].get();
         }
         node* operator[](const std::string& child) override {
             try {
@@ -231,10 +228,10 @@ namespace telegraph {
                 return nullptr;
             }
         }
-        inline std::vector<node*>::iterator begin() { return children_.begin(); }
-        inline std::vector<node*>::const_iterator begin() const { return children_.begin(); }
-        inline std::vector<node*>::iterator end() { return children_.end(); }
-        inline std::vector<node*>::const_iterator end() const { return children_.end(); }
+        inline std::vector<std::unique_ptr<node>>::iterator begin() { return children_.begin(); }
+        inline std::vector<std::unique_ptr<node>>::const_iterator begin() const { return children_.begin(); }
+        inline std::vector<std::unique_ptr<node>>::iterator end() { return children_.end(); }
+        inline std::vector<std::unique_ptr<node>>::const_iterator end() const { return children_.end(); }
 
         inline size_t num_children() const { return children_.size(); }
 
@@ -242,7 +239,7 @@ namespace telegraph {
 
         void pack(Group* group) const;
         virtual void pack(Node* proto) const override;
-        static group* unpack(const Group& g);
+        static std::unique_ptr<group> unpack(const Group& g);
 
         template<typename M>
             bool resolve_placeholders(M* nodes) {
@@ -254,7 +251,7 @@ namespace telegraph {
                     if (nodes_it == nodes->end()) return false;
                     node* child = nodes_it->second;
 
-                    children_.push_back(child);
+                    children_.push_back(std::unique_ptr<node>(child));
                     child->set_parent(this);
                     children_map_[child->get_name()] = child;
 
@@ -273,17 +270,17 @@ namespace telegraph {
         int version_;
 
         std::vector<node::id> placeholders_;
-        std::vector<node*> children_;
+        std::vector<std::unique_ptr<node>> children_;
         std::map<std::string, node*, std::less<>> children_map_;
     };
 
 
     class variable : public node {
     public:
-        variable(id i, const std::string_view& name, 
+        variable(id i, const std::string_view& name,
                 const std::string_view& pretty, const std::string_view& desc,
                 const value_type& t) : node(i, name, pretty, desc), data_type_(t) {}
-        variable(const variable& v) : 
+        variable(const variable& v) :
             node(v), data_type_(v.get_type()) {}
         const value_type& get_type() const { return data_type_; }
 
@@ -291,7 +288,7 @@ namespace telegraph {
 
         void pack(Variable* var) const;
         virtual void pack(Node* proto) const override;
-        static variable* unpack(const Variable& proto);
+        static std::unique_ptr<variable> unpack(const Variable& proto);
 
         std::unique_ptr<node> clone() const override {
             return std::make_unique<variable>(*this);
@@ -305,11 +302,11 @@ namespace telegraph {
     public:
         action(id i, const std::string_view& name,
                 const std::string_view& pretty, const std::string_view& desc,
-                const value_type& arg_type, const value_type& ret_type) : 
-                node(i, name, pretty, desc), 
+                const value_type& arg_type, const value_type& ret_type) :
+                node(i, name, pretty, desc),
                 arg_type_(arg_type), ret_type_(ret_type) {}
-        action(const action& a) : node(a), 
-            arg_type_(a.get_arg_type()), 
+        action(const action& a) : node(a),
+            arg_type_(a.get_arg_type()),
             ret_type_(a.get_ret_type()) {}
         const value_type& get_arg_type() const { return arg_type_; }
         const value_type& get_ret_type() const { return ret_type_; }
@@ -318,7 +315,7 @@ namespace telegraph {
 
         void pack(Action* proto) const;
         virtual void pack(Node* proto) const override;
-        static action* unpack(const Action& proto);
+        static std::unique_ptr<action> unpack(const Action& proto);
 
         std::unique_ptr<node> clone() const override {
             return std::make_unique<action>(*this);

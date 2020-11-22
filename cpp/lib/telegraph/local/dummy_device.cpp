@@ -5,9 +5,9 @@
 #include <boost/asio/spawn.hpp>
 
 namespace telegraph {
-    dummy_device::dummy_device(io::io_context& ioc, const std::string_view& name, 
+    dummy_device::dummy_device(io::io_context& ioc, const std::string_view& name,
                                 std::unique_ptr<node>&& tree)
-                           : local_context(ioc, name, "dummy_device", 
+                           : local_context(ioc, name, "dummy_device",
                                     params{}, std::move(tree))  {}
 
     dummy_device::~dummy_device() {}
@@ -21,7 +21,7 @@ namespace telegraph {
         handlers_.emplace(a, h);
     }
 
-    params_stream_ptr 
+    params_stream_ptr
     dummy_device::request(io::yield_ctx&, const params& p) {
         return nullptr;
     }
@@ -42,7 +42,8 @@ namespace telegraph {
                             value arg, float timeout) {
         return value::invalid();
     }
-   local_context_ptr 
+
+    local_context_ptr
     dummy_device::create(io::yield_ctx&, io::io_context& ioc,
             const std::string_view& name, const std::string_view& type,
             const params& p) {
@@ -53,7 +54,12 @@ namespace telegraph {
         auto status_type = value_type("Status", std::move(labels));
         auto childC = new variable(4, "c", "C", "", status_type);
 
-        std::vector<node*> children{childA, childB, childC};
+        std::vector<std::unique_ptr<node>> children{};
+
+        children.emplace_back(std::unique_ptr<node>(childA));
+        children.emplace_back(std::unique_ptr<node>(childB));
+        children.emplace_back(std::unique_ptr<node>(childC));
+
         auto root = std::make_unique<group>(1, "foo", "Foo", "", "", 1, std::move(children));
         auto dev = std::make_shared<dummy_device>(ioc, name, std::move(root));
 
@@ -76,7 +82,7 @@ namespace telegraph {
                 timer.expires_from_now(boost::posix_time::seconds(2));
                 timer.async_wait(yield);
                 { auto dev = w.lock(); if (!dev) break; }
-                (*a_publisher) << value{1.0f}; 
+                (*a_publisher) << value{1.0f};
 
                 timer.expires_from_now(boost::posix_time::seconds(2));
                 timer.async_wait(yield);

@@ -20,7 +20,7 @@ namespace telegraph {
     }
 
 
-    node*
+    std::unique_ptr<node>
     node::unpack(const Node& proto) {
         switch (proto.node_case()) {
         case Node::kGroup: return group::unpack(proto.group());
@@ -43,7 +43,7 @@ namespace telegraph {
         group* g = dynamic_cast<group*>(o);
         if (!g) return false;
         bool children_compatible = true;
-        for (node* c : children_) {
+        for (auto& c : children_) {
             if (!c->compatible_with((*g)[c->get_name()])) {
                 children_compatible = false;
                 break;
@@ -63,7 +63,7 @@ namespace telegraph {
         proto->set_desc(get_desc());
         proto->set_schema(get_schema());
         proto->set_version(get_version());
-        for (const node* n : children_) 
+        for (auto& n : children_)
             n->pack(proto->add_children());
     }
 
@@ -72,26 +72,26 @@ namespace telegraph {
         pack(proto->mutable_group());
     }
 
-    group*
+    std::unique_ptr<group>
     group::unpack(const Group& g) {
-        std::vector<node*> children;
+        std::vector<std::unique_ptr<node>> children;
         std::vector<node::id> placeholders;
         for (int i = 0; i < g.children_size(); i++) {
             const Node& n = g.children(i);
             if (n.node_case() == Node::kPlaceholder) {
                 placeholders.push_back(n.placeholder());
             } else {
-                children.push_back(node::unpack(g.children(i)));
+                children.push_back(std::move(node::unpack(g.children(i))));
             }
         }
         if (children.size() > 0 && placeholders.size() > 0) {
             return nullptr;
         } else if (children.size() > 0) {
-            return new group(g.id(), g.name(), g.pretty(),
+            return std::make_unique<group>(g.id(), g.name(), g.pretty(),
                             g.desc(), g.schema(), g.version(),
                             std::move(children));
         } else {
-            return new group(g.id(), g.name(), g.pretty(),
+            return std::make_unique<group>(g.id(), g.name(), g.pretty(),
                             g.desc(), g.schema(), g.version(),
                             std::move(placeholders));
         }
@@ -101,7 +101,7 @@ namespace telegraph {
     group::print(std::ostream& o, int ident) const {
         node::print(o, ident);
         o << name_ << ": " << schema_ << '/' << version_ << " (" << pretty_ << ')';
-        for (const node* c : children_) {
+        for (auto& c : children_) {
             o << std::endl;
             c->print(o, ident + 4);
         }
@@ -130,9 +130,9 @@ namespace telegraph {
         pack(n->mutable_var());
     }
 
-    variable*
+    std::unique_ptr<variable>
     variable::unpack(const Variable& proto) {
-        return new variable(proto.id(), proto.name(), 
+        return std::make_unique<variable>(proto.id(), proto.name(),
                             proto.pretty(), proto.desc(),
                             value_type::unpack(proto.data_type()));
     }
@@ -167,9 +167,9 @@ namespace telegraph {
         pack(n->mutable_action());
     }
 
-    action*
+    std::unique_ptr<action>
     action::unpack(const Action& proto) {
-        return new action(proto.id(), proto.name(),
+        return std::make_unique<action>(proto.id(), proto.name(),
                         proto.pretty(), proto.desc(),
                         value_type::unpack(proto.arg_type()),
                         value_type::unpack(proto.ret_type()));

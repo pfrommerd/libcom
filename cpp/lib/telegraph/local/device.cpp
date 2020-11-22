@@ -20,7 +20,7 @@ namespace fs = std::filesystem;
 
 namespace telegraph {
 
-    // Will encode a datastream and 
+    // Will encode a datastream and
     // compute a crc at the same time
     class encodebuf : public std::streambuf {
     private:
@@ -55,7 +55,7 @@ namespace telegraph {
         bool finished_;
         char ch_; // single-byte buffer
     public:
-        decodebuf(io::streambuf* input) : input_(input), 
+        decodebuf(io::streambuf* input) : input_(input),
                                         finished_(false) {}
         bool finished() const { return finished_; }
     private:
@@ -97,9 +97,9 @@ namespace telegraph {
     }
 
     device::device(io::io_context& ioc, const std::string& name, const std::string& port, int baud)
-            : local_context(ioc, name, "device", make_device_params(port, baud), nullptr), 
+            : local_context(ioc, name, "device", make_device_params(port, baud), nullptr),
               write_queue_(), write_buf_(), read_buf_(),
-              one_start_(false), decoding_(false), 
+              one_start_(false), decoding_(false),
               decode_buf_(),
               req_id_(0), reqs_(), adapters_(),
               port_(ioc) {
@@ -208,7 +208,7 @@ namespace telegraph {
     device::ping(io::yield_ctx& yield, bool wait, int timeout_ms) {
         auto sthis = shared_device_this();
         if (wait) {
-            io::deadline_timer timer(ioc_, 
+            io::deadline_timer timer(ioc_,
                 boost::posix_time::milliseconds(timeout_ms));
             uint32_t req_id = sthis->req_id_++;
             stream::Packet res;
@@ -248,7 +248,7 @@ namespace telegraph {
     node*
     device::fetch_node(io::yield_ctx& yield, node::id id) {
         auto sthis = shared_device_this();
-        io::deadline_timer timer(ioc_, 
+        io::deadline_timer timer(ioc_,
             boost::posix_time::milliseconds(1000));
         uint32_t req_id = sthis->req_id_++;
         stream::Packet res;
@@ -275,10 +275,10 @@ namespace telegraph {
         if (!res.has_node()) {
             return nullptr;
         }
-        return node::unpack(res.node());
+        return node::unpack(res.node()).release();
     }
 
-    subscription_ptr 
+    subscription_ptr
     device::subscribe(io::yield_ctx& yield, const variable* v,
                         float min_interval, float max_interval, float timeout) {
         // get the adapter for the variable
@@ -286,15 +286,15 @@ namespace telegraph {
         auto it = adapters_.find(id);
         if (it == adapters_.end()) {
             auto wp = std::weak_ptr<device>(shared_device_this());
-            auto change = [wp, id](io::yield_ctx& yield, float debounce, 
+            auto change = [wp, id](io::yield_ctx& yield, float debounce,
                             float refresh, float timeout) -> bool {
                 // get a shared pointer to the device
-                // will be invalid if the device 
+                // will be invalid if the device
                 // has been destroyed
                 auto sthis = wp.lock();
                 if (!sthis) return false;
 
-                io::deadline_timer timer(sthis->ioc_, 
+                io::deadline_timer timer(sthis->ioc_,
                     boost::posix_time::milliseconds(1000));
                 uint32_t req_id = sthis->req_id_++;
                 stream::Packet res;
@@ -340,7 +340,7 @@ namespace telegraph {
                     }
                 );
             };
-            auto cancel = [wp, id](io::yield_ctx& yield, 
+            auto cancel = [wp, id](io::yield_ctx& yield,
                                         float timeout) -> bool {
                 // do the unsubscribe
                 auto sthis = wp.lock();
@@ -351,7 +351,7 @@ namespace telegraph {
                 auto a = sthis->adapters_.at(id);
                 sthis->adapters_.erase(id);
 
-                io::deadline_timer timer(sthis->ioc_, 
+                io::deadline_timer timer(sthis->ioc_,
                     boost::posix_time::milliseconds(1000));
                 uint32_t req_id = sthis->req_id_++;
                 stream::Packet res;
@@ -385,13 +385,13 @@ namespace telegraph {
                                 ioc_, v->get_type(), poll, change, cancel);
             adapters_.emplace(id, a);
         }
-        return adapters_.at(id)->subscribe(yield, 
+        return adapters_.at(id)->subscribe(yield,
                     min_interval, max_interval, timeout);
     }
 
     value
     device::call(io::yield_ctx& yield, action* a, value arg, float timeout) {
-        io::deadline_timer timer(ioc_, 
+        io::deadline_timer timer(ioc_,
             boost::posix_time::milliseconds(1000));
         uint32_t req_id = req_id_++;
         stream::Packet res;
@@ -430,7 +430,7 @@ namespace telegraph {
                 });
         }
     }
-    void 
+    void
     device::on_read(const boost::system::error_code& ec, size_t transferred) {
         if (ec) return; // on error cancel the reading loop
         if (!decoding_) {
@@ -499,7 +499,7 @@ namespace telegraph {
         do_reading(0);
     }
 
-    void 
+    void
     device::do_write_next() {
         // grab the front of the write queue
         auto p = std::move(write_queue_.front());
@@ -539,7 +539,7 @@ namespace telegraph {
             } else {
                 std::ios init(NULL);
                 init.copyfmt(std::cout);
-                std::cout << "\\x" << std::setfill('0') << std::setw(2) 
+                std::cout << "\\x" << std::setfill('0') << std::setw(2)
                         << std::hex << (int) ui;
                 std::cout.copyfmt(init);
             }
@@ -549,7 +549,7 @@ namespace telegraph {
         //*/
 
         auto shared = shared_device_this();
-        io::async_write(port_, write_buf_.data(), 
+        io::async_write(port_, write_buf_.data(),
             [shared] (const boost::system::error_code& ec, size_t transferred) {
                 if (ec) return;
                 shared->write_buf_.consume(transferred);

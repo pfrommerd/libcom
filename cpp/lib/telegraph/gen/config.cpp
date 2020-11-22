@@ -7,8 +7,8 @@
 #include <iostream>
 
 namespace telegraph {
-    static void unpack_profile(profile* p, 
-                               const std::vector<node*>& nodes, 
+    static void unpack_profile(profile* p,
+                               const std::vector<node*>& nodes,
                                const json& j) {
         for (const auto& item : j.items()) {
             const json& filter = item.value();
@@ -63,13 +63,13 @@ namespace telegraph {
     };
     static
     value_type::type_class unpack_type_class(const std::string& tc) {
-        try { 
+        try {
             return s_type_map.at(tc);
         } catch (const std::out_of_range& r) {
             return value_type::Invalid;
         }
     }
-    static node* unpack_node(int32_t* id_counter, const std::string& name, const json& json);
+    static std::unique_ptr<node> unpack_node(int32_t* id_counter, const std::string& name, const json& json);
 
     static value_type unpack_type(const json& json) {
         value_type t(value_type::Invalid);
@@ -93,15 +93,15 @@ namespace telegraph {
         return t;
     }
 
-    static variable* unpack_variable(int32_t* id_counter, const std::string& name, 
+    static std::unique_ptr<variable> unpack_variable(int32_t* id_counter, const std::string& name,
                                      const json& json) {
         value_type t = unpack_type(json);
         std::string pretty = json.is_object() ? json.value("pretty", "") : "";
         std::string desc = json.is_object() ? json.value("desc", "") : "";
-        return new variable((*id_counter)++, name, pretty, desc, t);
+        return std::make_unique<variable>((*id_counter)++, name, pretty, desc, t);
     }
 
-    static action* unpack_action(int32_t* id_counter, const std::string& name, 
+    static std::unique_ptr<action> unpack_action(int32_t* id_counter, const std::string& name,
                                  const json& json) {
         value_type arg(value_type::None);
         value_type ret(value_type::None);
@@ -109,28 +109,28 @@ namespace telegraph {
         if (json.find("ret") != json.end()) ret = unpack_type(json["ret"]);
         std::string pretty = json.value("pretty", "");
         std::string desc = json.value("desc", "");
-        return new action((*id_counter)++, name, pretty, desc, arg, ret);
+        return std::make_unique<action>((*id_counter)++, name, pretty, desc, arg, ret);
     }
 
-    static group* unpack_group(int32_t* id_counter, const std::string& name,
+    static std::unique_ptr<group> unpack_group(int32_t* id_counter, const std::string& name,
                                 const json& json) {
         int32_t id = (*id_counter)++;
         std::string schema = json.value("schema", "none");
         int version = json.value("version", 0);
         std::string pretty = json.value("pretty", "");
         std::string desc = json.value("desc", "");
-        std::vector<node*> children;
+        std::vector<std::unique_ptr<node>> children;
         for (const auto& item : json.items()) {
             const auto& key = item.key();
             if (key != "schema" && key != "version" &&
                  key != "pretty" && key != "desc" && key != "type") {
-                children.push_back(unpack_node(id_counter, key, item.value()));
+                children.push_back(std::move(unpack_node(id_counter, key, item.value())));
             }
         }
-        return new group(id, name, pretty, desc, schema, version, std::move(children));
+        return std::make_unique<group>(id, name, pretty, desc, schema, version, std::move(children));
     }
 
-    static node* unpack_array(int32_t* id_counter, const std::string& name, const json& j) {
+    static std::unique_ptr<node> unpack_array(int32_t* id_counter, const std::string& name, const json& j) {
         int32_t id = (*id_counter)++;
         size_t length = j.value("length", 0);
         if (length == 0) {
@@ -145,14 +145,14 @@ namespace telegraph {
         }
         const json& array_type = j["of"];
 
-        std::vector<node*> children;
+        std::vector<std::unique_ptr<node>> children;
         for (size_t i = 0; i < length; i++) {
             children.push_back(unpack_node(id_counter, std::to_string(i), array_type));
         }
-        return new group(id, name, pretty, desc, "array", version, std::move(children));
+        return std::make_unique<group>(id, name, pretty, desc, "array", version, std::move(children));
     }
 
-    static node* unpack_node(int32_t* id_counter, const std::string& name, 
+    static std::unique_ptr<node> unpack_node(int32_t* id_counter, const std::string& name,
                              const json& json) {
         if (json.is_string()) return unpack_variable(id_counter, name, json);
         if (!json.is_object()) throw parse_error("unable to parse node: " + json.dump());
@@ -187,7 +187,5 @@ namespace telegraph {
         }
     }
 
-    config::~config() {
-        delete tree_;
-    }
+    config::~config() {}
 }

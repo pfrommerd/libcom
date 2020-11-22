@@ -45,12 +45,12 @@ namespace telegraph {
         config(const json& j);
         ~config();
 
-        const node* get_tree() const { return tree_; }
+        const node* get_tree() const { return tree_.get(); }
 
         profile& get_profile(const std::string& name) { return profiles_.at(name); }
         const profile& get_profile(const std::string& name) const { return profiles_.at(name); }
     private:
-        node* tree_;
+        std::unique_ptr<node> tree_;
         std::unordered_map<std::string, profile> profiles_;
     };
 }
