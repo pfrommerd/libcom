@@ -11,6 +11,13 @@ use anyhow::{anyhow, Result};
 async fn main() -> Result<()> {
     env_logger::init();
 
+    //Build Rust code from .proto files
+    //prost_build::compile_protos(&["../../api.proto", "../../common.proto", "../../log.proto", "../../stream.proto"], &["../../"]).unwrap();
+    // On further note this appears to be done already in build.rs
+
+
+
+
     let addr = match env::var("TELEGRAPH_SERVER_ADDR") {
         Ok(addr) => addr,
         Err(env::VarError::NotPresent) => "0.0.0.0:8081".to_string(),
@@ -31,5 +38,5 @@ async fn main() -> Result<()> {
                 error!("Closing connection due to error: {}", error)
             }
         });
-    }
+    } 
 }

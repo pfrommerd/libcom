@@ -9,4 +9,9 @@ fn main() {
         &["../.."],
     )
     .unwrap();
+
+    prost_build::compile_protos(
+        &["src/items.proto"],
+        &["src/"]
+    ).unwrap();
 }

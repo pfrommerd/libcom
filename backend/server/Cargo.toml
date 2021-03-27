@@ -8,6 +8,7 @@ edition = "2018"
 # tokio allows for async io
 tokio = { version = "0.3.5", features = ["full"] }
 futures-util = "0.3.8"
+bytes = "1.0.1"
 # Tungstenite is a websocket library
 tungstenite = "0.11.1"
 tokio-tungstenite = "0.12.0"

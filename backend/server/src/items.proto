@@ -1,0 +1,14 @@
+syntax = "proto3";
+
+package telegraph.items;
+
+message Car {
+    enum Model {
+        Rev5 = 0;
+        Rev6 = 1;
+        Rev7 = 2;
+    }
+
+    string color = 1;
+    Model model = 2;
+}
